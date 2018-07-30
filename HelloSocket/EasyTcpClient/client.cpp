@@ -5,10 +5,40 @@
 #include <WinSock2.h>
 #include <stdio.h>
 
-struct DataPackage
+struct Login
 {
-	int age;
-	char name[32];
+	char userName[32];
+	char PassWord[32];
+};
+
+struct LoginResult
+{
+	int result;
+};
+
+struct Logout
+{
+	char userName[32];
+};
+
+struct LogoutResult
+{
+	int result;
+};
+
+enum CMD
+{
+	CMD_LOGIN,
+	CMD_Logout,
+	CMD_ERROR
+};
+
+//消息头
+struct DataHeader
+{
+	short cmd;       //命令
+	short dataLength;  //数据长度
+	
 };
 
 //#pragma comment(lib,"ws2_32.lib")
@@ -55,20 +85,42 @@ int main()
 		{
 			break;
 		}
-		else
+		else if(0 == strcmp(msgSend, "login"))
 		{
 			//5. 向服务器发送请求
-			send(sock, msgSend, strlen(msgSend) + 1, 0);
+			Login login = { "lyd","mima" };
+			DataHeader dh = { CMD_LOGIN, sizeof(login) };
+			send(sock, (char*)&dh, sizeof(dh), 0);
+			send(sock, (char*)&login, sizeof(login), 0);
+
+			//6.接收服务器返回数据
+			DataHeader retHeader = {};
+			LoginResult loginRet = {};
+			recv(sock, (char*)&retHeader, sizeof(DataHeader), 0);
+			recv(sock, (char*)&loginRet, sizeof(loginRet), 0);
+			printf("LoginResult: %d\n", loginRet.result);
+
+		}
+		else if (0 == strcmp(msgSend, "logout"))
+		{
+			//5. 向服务器发送请求
+			Logout logout = { "lyd" };
+			DataHeader dh = { CMD_Logout,sizeof(logout) };
+			send(sock, (char*)&dh, sizeof(dh), 0);
+			send(sock, (char*)&logout, sizeof(logout), 0);
+
+			//6.接收服务器返回数据
+			DataHeader retHeader = {};
+			LoginResult loginRet = {};
+			recv(sock, (char*)&retHeader, sizeof(DataHeader), 0);
+			recv(sock, (char*)&loginRet, sizeof(loginRet), 0);
+			printf("LogoutResult: %d\n", loginRet.result);
+		}
+		else
+		{
+			printf("不支持的命令\n");
 		}
 		
-		//6. 接收 recv
-		char buf[128] = { 0 };
-		int ret = recv(sock, buf, 1024, 0);
-		if (ret > 0)
-		{
-			DataPackage* pDp = (DataPackage*)buf;
-			printf("server-> name:%s age:%d\n", pDp->name, pDp->age);
-		}
 	}
 
 	printf("客户端已结束\n");
