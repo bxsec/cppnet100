@@ -5,6 +5,12 @@
 #include <WinSock2.h>
 #include <stdio.h>
 
+struct DataPackage
+{
+	int age;
+	char name[32];
+};
+
 //#pragma comment(lib,"ws2_32.lib")
 int main()
 {
@@ -60,8 +66,8 @@ int main()
 		int ret = recv(sock, buf, 1024, 0);
 		if (ret > 0)
 		{
-			buf[ret] = '\0';
-			printf("server:%s\n", buf);
+			DataPackage* pDp = (DataPackage*)buf;
+			printf("server-> name:%s age:%d\n", pDp->name, pDp->age);
 		}
 	}
 

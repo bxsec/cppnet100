@@ -4,6 +4,13 @@
 #include <WinSock2.h>
 #include <stdio.h>
 
+struct DataPackage
+{
+	int age;
+	char name[32];
+};
+
+
 //#pragma comment(lib,"ws2_32.lib")
 int main()
 {
@@ -69,15 +76,11 @@ int main()
 			break;
 		}
 		//6. ´¦ÀíÇëÇó
-		if (0 == strcmp(msgRecvMsg, "getName") )
+		if (0 == strcmp(msgRecvMsg, "getInfo") )
 		{
-			char msgBuf[] = "Xiao Qiang";
-			send(sock_client, msgBuf, strlen(msgBuf) + 1, 0);
-		}
-		else if (0 == strcmp(msgRecvMsg, "getAge"))
-		{
-			char msgBuf[] = "80";
-			send(sock_client, msgBuf, strlen(msgBuf) + 1, 0);
+			DataPackage dp = {80,"ÂÀ¶´±ö"};
+
+			send(sock_client, (const char*)&dp, sizeof(dp), 0);
 		}
 		else
 		{
