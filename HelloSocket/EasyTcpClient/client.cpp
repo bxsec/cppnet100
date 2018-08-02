@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <WinSock2.h>
 #include <stdio.h>
+#include <thread>
 
 enum CMD
 {
@@ -11,6 +12,7 @@ enum CMD
 	CMD_LOGIN_RESULT,
 	CMD_LOGOUT,
 	CMD_LOGOUT_RESULT,
+	CMD_NEW_USER_JOIN,
 	CMD_ERROR
 };
 
@@ -65,6 +67,128 @@ struct LogoutResult : public DataHeader
 	int result;
 };
 
+struct NewUserJoin : public DataHeader
+{
+	NewUserJoin()
+	{
+		dataLength = sizeof(LogoutResult);
+		cmd = CMD_NEW_USER_JOIN;
+		socket = 0;
+	}
+	int socket;
+};
+
+int processor(SOCKET sock_client)
+{
+	char msgRecvMsg[1024] = { 0 };
+
+
+
+	//5. 接收客户端数据
+	int nRecvLen = recv(sock_client, (char*)msgRecvMsg, sizeof(DataHeader), 0);
+	DataHeader* header = (DataHeader*)msgRecvMsg;
+	if (nRecvLen <= 0)
+	{
+		printf("服务器已经退出，任务结束.\n");
+		closesocket(sock_client);
+		return -1;
+	}
+
+	//6. 处理请求
+	switch (header->cmd)
+	{
+	case CMD_LOGIN_RESULT:
+	{
+		recv(sock_client, (char*)&msgRecvMsg + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+		
+		//忽略判断用户密码是否正确的过程
+		LoginResult* ret = (LoginResult*)msgRecvMsg;
+		printf("收到服务端信息:CMD_LOGIN_RESULT, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->result);
+
+	}
+	break;
+	case CMD_LOGOUT_RESULT:
+	{
+		recv(sock_client, (char*)&msgRecvMsg + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+
+		//忽略判断用户密码是否正确的过程
+		LogoutResult* ret = (LogoutResult*)msgRecvMsg;
+		printf("收到服务端信息:CMD_LOGOUT_RESULT, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->result);
+	}
+	break;
+	case CMD_NEW_USER_JOIN:
+	{
+		recv(sock_client, (char*)&msgRecvMsg + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+
+		//忽略判断用户密码是否正确的过程
+		NewUserJoin* ret = (NewUserJoin*)msgRecvMsg;
+		printf("收到服务端信息:CMD_NEW_USER_JOIN, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->socket);
+	}
+	break;
+	}
+
+	return 0;
+}
+bool g_bIsRun = true;
+void cmdThread(SOCKET sock)
+{
+	char msgSend[128] = {};
+
+
+	while (true)
+	{
+		scanf("%s", msgSend);
+
+		//4.处理请求命令
+		if (0 == strcmp(msgSend, "exit"))
+		{
+			g_bIsRun = false;
+			break;
+		}
+		else if (0 == strcmp(msgSend, "login"))
+		{
+			//5. 向服务器发送请求
+			Login login;
+			login.userName;
+			strcpy_s(login.userName, 32, "lyd");
+			strcpy_s(login.PassWord, 32, "mima");
+
+			send(sock, (char*)&login, sizeof(login), 0);
+
+			//6.接收服务器返回数据
+
+			LoginResult loginRet;
+			recv(sock, (char*)&loginRet, sizeof(loginRet), 0);
+			printf("LoginResult: %d\n", loginRet.result);
+
+		}
+		else if (0 == strcmp(msgSend, "logout"))
+		{
+			//5. 向服务器发送请求
+			Logout logout;
+			strcpy_s(logout.userName, 32, "lyd");
+			send(sock, (char*)&logout, sizeof(logout), 0);
+
+			//6.接收服务器返回数据
+			LoginResult loginRet = {};
+			recv(sock, (char*)&loginRet, sizeof(loginRet), 0);
+			printf("LogoutResult: %d\n", loginRet.result);
+		}
+		else
+		{
+			printf("不支持的命令\n");
+		}
+	}
+
+
+	/*Login login;
+	strcpy_s(login.userName, "lyd");
+	strcpy_s(login.PassWord, "psw");
+	send(sock, (char*)&login, sizeof(Login), 0);
+	Sleep(1000);*/
+}
+
+
 //#pragma comment(lib,"ws2_32.lib")
 int main()
 {
@@ -98,50 +222,38 @@ int main()
 	}
 	printf("connect 成功..\n");
 
-
-	while (true)
+	std::thread t1(cmdThread, sock);
+	t1.detach();
+	while (g_bIsRun)
 	{
-		//3.输入请求命令
-		char msgSend[128] = {};
-		scanf("%s", msgSend);
-		//4.处理请求命令
-		if (0 == strcmp(msgSend, "exit"))
+		fd_set fdReads;
+		FD_ZERO(&fdReads);
+
+		FD_SET(sock, &fdReads);
+		timeval tv = { 1,0 };
+		int ret = select(sock + 1, &fdReads, 0, 0, &tv);
+		if (ret < 0)
 		{
+			DWORD dwError = GetLastError();
+			printf("select任务结束\n");
 			break;
 		}
-		else if(0 == strcmp(msgSend, "login"))
+
+		if (FD_ISSET(sock, &fdReads))
 		{
-			//5. 向服务器发送请求
-			Login login;
-			login.userName;
-			strcpy_s(login.userName, 32, "lyd");
-			strcpy_s(login.PassWord, 32, "mima");
+			FD_CLR(sock, &fdReads);
 
-			send(sock, (char*)&login, sizeof(login), 0);
-
-			//6.接收服务器返回数据
-
-			LoginResult loginRet;
-			recv(sock, (char*)&loginRet, sizeof(loginRet), 0);
-			printf("LoginResult: %d\n", loginRet.result);
-
+			if (-1 == processor(sock))
+			{
+				break;
+			}
 		}
-		else if (0 == strcmp(msgSend, "logout"))
-		{
-			//5. 向服务器发送请求
-			Logout logout;
-			strcpy_s(logout.userName, 32, "lyd");
-			send(sock, (char*)&logout, sizeof(logout), 0);
 
-			//6.接收服务器返回数据
-			LoginResult loginRet = {};
-			recv(sock, (char*)&loginRet, sizeof(loginRet), 0);
-			printf("LogoutResult: %d\n", loginRet.result);
-		}
-		else
-		{
-			printf("不支持的命令\n");
-		}
+		
+		
+		
+
+		//printf("客户端空闲处理其他业务\n");
 		
 	}
 
