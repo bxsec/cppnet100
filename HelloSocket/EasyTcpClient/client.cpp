@@ -1,8 +1,20 @@
 #define WIN32_LEAN_AND_MEAN
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
-#include <Windows.h>
-#include <WinSock2.h>
+
+#ifdef _WIN32
+	#include <Windows.h>
+	#include <WinSock2.h>
+#else
+	#include <unistd.h>
+	#include <arpa/inet.h>
+	#include <string.h>
+#define SOCKET int
+#define INVALID_SOCKET (SOCKET)(~0)
+#define SOCKET_ERROR	(-1)
+
+#endif
+
 #include <stdio.h>
 #include <thread>
 
@@ -82,15 +94,17 @@ int processor(SOCKET sock_client)
 {
 	char msgRecvMsg[1024] = { 0 };
 
-
-
 	//5. 接收客户端数据
 	int nRecvLen = recv(sock_client, (char*)msgRecvMsg, sizeof(DataHeader), 0);
 	DataHeader* header = (DataHeader*)msgRecvMsg;
 	if (nRecvLen <= 0)
 	{
 		printf("服务器已经退出，任务结束.\n");
+#ifdef _WIN32
 		closesocket(sock_client);
+#else
+		close(sock_client);
+#endif
 		return -1;
 	}
 
@@ -104,7 +118,6 @@ int processor(SOCKET sock_client)
 		//忽略判断用户密码是否正确的过程
 		LoginResult* ret = (LoginResult*)msgRecvMsg;
 		printf("收到服务端信息:CMD_LOGIN_RESULT, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->result);
-
 	}
 	break;
 	case CMD_LOGOUT_RESULT:
@@ -134,7 +147,6 @@ void cmdThread(SOCKET sock)
 {
 	char msgSend[128] = {};
 
-
 	while (true)
 	{
 		scanf("%s", msgSend);
@@ -156,7 +168,6 @@ void cmdThread(SOCKET sock)
 			send(sock, (char*)&login, sizeof(login), 0);
 
 			//6.接收服务器返回数据
-
 			LoginResult loginRet;
 			recv(sock, (char*)&loginRet, sizeof(loginRet), 0);
 			printf("LoginResult: %d\n", loginRet.result);
@@ -179,25 +190,20 @@ void cmdThread(SOCKET sock)
 			printf("不支持的命令\n");
 		}
 	}
-
-
-	/*Login login;
-	strcpy_s(login.userName, "lyd");
-	strcpy_s(login.PassWord, "psw");
-	send(sock, (char*)&login, sizeof(Login), 0);
-	Sleep(1000);*/
 }
 
 
 //#pragma comment(lib,"ws2_32.lib")
 int main()
 {
+#ifdef _WIN32
 	WORD ver = MAKEWORD(2, 2);
 	WSADATA wsaData;
 	if (WSAStartup(ver, &wsaData) != 0)
 	{
 		return 0;
 	}
+#endif
 
 	//1. 建立socket
 	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -211,13 +217,21 @@ int main()
 
 	//2. 连接服务器 connect
 	sockaddr_in serverAddr;
+
 	serverAddr.sin_family = AF_INET;
+#ifdef _WIN32
 	serverAddr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+#else
+	serverAddr.sin_addr.s_addr = inet_addr("192.168.229.1");
+#endif
+	
 	serverAddr.sin_port = htons(8000);
-	if (SOCKET_ERROR == connect(sock, (sockaddr*)&serverAddr, sizeof(serverAddr)))
+	if (SOCKET_ERROR == connect(sock+1, (sockaddr*)&serverAddr, sizeof(serverAddr)))
 	{
 		printf("connect 错误\n");
+#ifdef _WIN32
 		WSACleanup();
+#endif
 		return 0;
 	}
 	printf("connect 成功..\n");
@@ -260,10 +274,13 @@ int main()
 	printf("客户端已结束\n");
 
 	//4. 关闭socket closesocket
-	closesocket(sock);
+	
 	getchar();
-
+#ifdef _WIN32
+	closesocket(sock);
 	WSACleanup();
-
+#else
+	close(sock);
+#endif
 	return 0;
 }
