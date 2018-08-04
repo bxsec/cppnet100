@@ -56,14 +56,16 @@ public:
 		if (INVALID_SOCKET == sock)
 		{
 			printf("创建sock失败\n");
+#ifdef _WIN32
 			WSACleanup();
+#endif			
 			return ;
 		}
 		printf("创建套接字成功..\n");
 	}
 
 	//连接服务器
-	int Connect(char* ip,unsigned short port)
+	int Connect(const char* ip,unsigned short port)
 	{
 		if (sock == INVALID_SOCKET)
 		{
@@ -82,15 +84,15 @@ public:
 #endif
 
 		serverAddr.sin_port = htons(port);
-		if (SOCKET_ERROR == connect(sock + 1, (sockaddr*)&serverAddr, sizeof(serverAddr)))
+		if (SOCKET_ERROR == connect(sock, (sockaddr*)&serverAddr, sizeof(serverAddr)))
 		{
-			printf("connect 错误\n");
+			printf("<socket=%d>错误，连接服务器<%s:%d>失败\n",sock,ip,port);
 #ifdef _WIN32
 			WSACleanup();
 #endif
 			return 0;
 		}
-		printf("connect 成功..\n");
+		printf("<socket=%d>,连接服务器<%s:%d>成功\n", sock, ip, port);
 		return 0;
 	}
 
@@ -123,7 +125,7 @@ public:
 			if (ret < 0)
 			{
 
-				printf("<socket=%d>任务结束\n",sock);
+				printf("<socket=%d>select任务结束\n",sock);
 				return false;
 			}
 
@@ -133,6 +135,7 @@ public:
 
 				if (-1 == RecvData(sock))
 				{
+					Close();
 					printf("<socket=%d>任务结束\n",sock);
 					return false;
 				}
