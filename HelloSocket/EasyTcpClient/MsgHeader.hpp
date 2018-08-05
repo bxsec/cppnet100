@@ -25,6 +25,7 @@ struct Login :public DataHeader
 	}
 	char userName[32];
 	char PassWord[32];
+	char Data[1024];
 };
 
 struct LoginResult :public DataHeader
@@ -35,6 +36,7 @@ struct LoginResult :public DataHeader
 		cmd = CMD_LOGIN_RESULT;
 		result = 0;
 	}
+	char Data[1024];
 	int result;
 };
 
@@ -46,6 +48,7 @@ struct Logout : public DataHeader
 		cmd = CMD_LOGOUT;
 	}
 	char userName[32];
+	char Data[1024];
 };
 
 struct LogoutResult : public DataHeader
@@ -56,6 +59,7 @@ struct LogoutResult : public DataHeader
 		cmd = CMD_LOGOUT_RESULT;
 		result = 0;
 	}
+	char Data[1024];
 	int result;
 };
 

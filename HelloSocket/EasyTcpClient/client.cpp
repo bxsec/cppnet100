@@ -3,8 +3,6 @@
 #include <thread>
 
 
-
-
 bool g_bIsRun = true;
 void cmdThread(EasyTcpClient* client)
 {
@@ -45,20 +43,23 @@ void cmdThread(EasyTcpClient* client)
 	}
 }
 
-
 //#pragma comment(lib,"ws2_32.lib")
 int main()
 {
 	EasyTcpClient client;
 	client.initSocket();
 	client.Connect("127.0.0.1", 8000);
-	std::thread t1(cmdThread, &client);
-	t1.detach();
+	/*std::thread t1(cmdThread, &client);
+	t1.detach();*/
+	Login login;
+	strcpy_s(login.userName, "lyd");
+	strcpy_s(login.PassWord, "mima");
+
 	while (client.isRun())
 	{
 		client.OnRun();
 		//printf("客户端空闲处理其他业务\n");
-		
+		client.SendData(&login);
 	}
 	client.Close();
 

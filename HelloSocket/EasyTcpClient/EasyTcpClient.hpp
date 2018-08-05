@@ -36,7 +36,6 @@ public:
 	void initSocket()
 	{
 		//启动win socket 2.x环境
-		
 #ifdef _WIN32
 		WORD ver = MAKEWORD(2, 2);
 		WSADATA wsaData;
@@ -71,7 +70,6 @@ public:
 		{
 			initSocket();
 		}
-
 
 		//2. 连接服务器 connect
 		sockaddr_in serverAddr;
@@ -124,7 +122,6 @@ public:
 			int ret = select(sock + 1, &fdReads, 0, 0, &tv);
 			if (ret < 0)
 			{
-
 				printf("<socket=%d>select任务结束\n",sock);
 				return false;
 			}
@@ -144,8 +141,13 @@ public:
 		}
 		return false;
 	}
-
 	//
+#define RECV_BUFF_SIZE 10240
+	//接收缓冲区
+	char _szRecv[RECV_BUFF_SIZE] = {};
+	//第二缓冲区 消息缓冲区
+	char _szMsgBuf[RECV_BUFF_SIZE * 10] = {};
+	int _lastPos = 0;
 
 	bool isRun()
 	{
@@ -155,10 +157,40 @@ public:
 	//接收数据 需要处理粘包 拆包的问题
 	int RecvData(SOCKET sock_client)
 	{
-		char msgRecvMsg[1024] = { 0 };
 
 		//5. 接收客户端数据
-		int nRecvLen = recv(sock_client, (char*)msgRecvMsg, sizeof(DataHeader), 0);
+		int nLen = recv(sock_client, _szRecv, RECV_BUFF_SIZE, 0);
+		if (nLen <= 0)
+		{
+			printf("<socket=%d>与服务器断开连接,任务结束。\n", sock_client);
+			return -1;
+		}
+		printf("nLen=%d\n", nLen);
+		//将收取的数据拷贝到消息缓冲区
+		memcpy(_szMsgBuf+ _lastPos, _szRecv, nLen);
+		_lastPos += nLen; //消息缓冲区的数据尾部位置后移
+		//判断消息缓冲区的数据长度大于消息头DataHeader长度
+		//这时就可以知道当前消息体的长度
+		while (_lastPos >= sizeof(DataHeader)) //处理粘包和少包 
+		{
+			DataHeader* header = (DataHeader*)_szMsgBuf;
+			if (_lastPos >= header->dataLength)
+			{
+				//剩余未处理消息缓冲区数据的长度
+				int nSize = _lastPos - header->dataLength;
+				//处理网络消息
+				OnNetMsg(header);
+				//将消息缓冲区剩余未处理数据前移
+				memcpy(_szMsgBuf, _szMsgBuf + header->dataLength, nSize);
+				_lastPos = nSize;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		/*
 		DataHeader* header = (DataHeader*)msgRecvMsg;
 		if (nRecvLen <= 0)
 		{
@@ -174,7 +206,7 @@ public:
 		//6. 处理请求
 		recv(sock_client, (char*)&msgRecvMsg + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
 		OnNetMsg(header);
-
+		*/
 		return 0;
 	}
 
@@ -188,15 +220,15 @@ public:
 			
 
 			//忽略判断用户密码是否正确的过程
-			LoginResult* ret = (LoginResult*)header;
-			printf("收到服务端信息:CMD_LOGIN_RESULT, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->result);
+			//LoginResult* ret = (LoginResult*)header;
+			//printf("收到服务端信息:CMD_LOGIN_RESULT, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->result);
 		}
 		break;
 		case CMD_LOGOUT_RESULT:
 		{
 			//忽略判断用户密码是否正确的过程
-			LogoutResult* ret = (LogoutResult*)header;
-			printf("收到服务端信息:CMD_LOGOUT_RESULT, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->result);
+			///LogoutResult* ret = (LogoutResult*)header;
+			//printf("收到服务端信息:CMD_LOGOUT_RESULT, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->result);
 		}
 		break;
 		case CMD_NEW_USER_JOIN:
@@ -206,6 +238,15 @@ public:
 			printf("收到服务端信息:CMD_NEW_USER_JOIN, 数据长度:%d,SocketId:%d\n", ret->dataLength, ret->socket);
 		}
 		break;
+		case CMD_ERROR:
+		{
+			printf("<socket=%d>收到服务端消息:CMD_ERROR，数据长度:%d\n", sock, header->dataLength);
+		}
+		break;
+		default:
+		{
+			printf("收到未定义消息，数据长度:%d\n", header->dataLength);
+		}
 		}
 	}
 
@@ -222,11 +263,5 @@ public:
 private:
 
 };
-
-
-
-
-
-
 #endif
 
