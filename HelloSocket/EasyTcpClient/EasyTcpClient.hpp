@@ -157,7 +157,6 @@ public:
 	//接收数据 需要处理粘包 拆包的问题
 	int RecvData(SOCKET sock_client)
 	{
-
 		//5. 接收客户端数据
 		int nLen = recv(sock_client, _szRecv, RECV_BUFF_SIZE, 0);
 		if (nLen <= 0)
