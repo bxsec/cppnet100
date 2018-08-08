@@ -8,6 +8,7 @@ int main()
 	server.InitSocket();
 	server.Bind("", 8000);
 	server.Listen(5);
+	server.Start();
 	while (server.isRun())
 	{
 		server.OnRun();
