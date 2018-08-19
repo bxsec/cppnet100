@@ -111,32 +111,29 @@ public:
 
 	void Close()
 	{
-		if(sock != INVALID_SOCKET)
-		{
 		//	6. 关闭socket closesocket
 #ifdef _WIN32
-			for (auto iter = m_clients.begin(); iter != m_clients.end(); iter++)
-			{
+		for (auto iter = m_clients.begin(); iter != m_clients.end(); iter++)
+		{
 
-				closesocket((*iter)->sockfd());
-				m_clients.erase(iter);
-				delete (*iter);
-			}
-			closesocket(sock);
-
-			WSACleanup();
-#else
-			for (auto iter = m_clients.begin(); iter != m_clients.end(); iter++)
-			{
-				close((*iter)->sockfd());
-				m_clients.erase(iter);
-				delete (*iter);
-			}
-			close(sock);
-#endif
-			m_clients.clear();
-			sock = INVALID_SOCKET;
+			closesocket((*iter)->sockfd());
+			m_clients.erase(iter);
+			delete (*iter);
 		}
+		closesocket(sock);
+
+		WSACleanup();
+#else
+		for (auto iter = m_clients.begin(); iter != m_clients.end(); iter++)
+		{
+			close((*iter)->sockfd());
+			m_clients.erase(iter);
+			delete (*iter);
+		}
+		close(sock);
+#endif
+		m_clients.clear();
+		sock = INVALID_SOCKET;
 	}
 
 	bool isRun()
@@ -151,7 +148,7 @@ public:
 		int nRecvLen = recv(sock_client->sockfd(), (char*)szRecv, RECV_BUFF_SIZE, 0);
 		if (nRecvLen <= 0)
 		{
-			printf("客户端<Socket=%d>已退出，任务结束.\n",sock_client->sockfd());
+			printf("客户端已经退出，任务结束.\n");
 			return -1;
 		}
 
@@ -201,7 +198,7 @@ public:
 			_tTime.update();
 		}*/
 		m_nRecvCount++;
-		m_pNetEvent->OnNetMsg(client,header);
+
 		switch (header->cmd)
 		{
 		case CMD_LOGIN:
@@ -210,8 +207,8 @@ public:
 
 			//printf("收到命令:CMD_LOGIN, 数据长度:%d,userName=%s PassWord=%s\n", login->dataLength, login->userName, login->PassWord);
 			//忽略判断用户密码是否正确的过程
-			//LoginResult ret;
-			//SendData(client, &ret);
+			LoginResult ret;
+			SendData(client, &ret);
 
 		}
 		break;
@@ -222,15 +219,15 @@ public:
 			//忽略判断用户密码是否正确的过程
 			//printf("收到命令:CMD_LOGIN, 数据长度:%d,userName=%s\n", logout->dataLength, logout->userName);
 
-			//LogoutResult ret;
-			//SendData(client, &ret);
+			LogoutResult ret;
+			SendData(client, &ret);
 		}
 		break;
 		default:
 		{
 			printf("Server:未解析命令\n");
-			//DataHeader header = { CMD_ERROR,0 };
-			//SendData(client, &header);
+			DataHeader header = { CMD_ERROR,0 };
+			SendData(client, &header);
 		}
 		break;
 
@@ -285,11 +282,10 @@ public:
 			//nfds是一个整数值 是指fd_set集合中所有描述符(socket)的范围，而不是数量
 			//既是所有文件描述符最大值+1 在windows中这个参数可以写0
 			timeval t = { 0,0 };
-			int ret = select(maxSock + 1, &fdRead, &fdWrite, &fdExcept, 0);
+			int ret = select(maxSock + 1, &fdRead, &fdWrite, &fdExcept, &t);
 			if (ret < 0)
 			{
 				printf("select任务结束.\n");
-				Close();
 				return false;
 			}
 			
@@ -305,7 +301,7 @@ public:
 			}
 			}*/
 
-			for (size_t n = (int)m_clients.size()-1; n >= 0; n--)
+			for (size_t n = 0; n < m_clients.size(); n++)
 			{
 				if (FD_ISSET(m_clients[n]->sockfd(), &fdRead))
 				{
@@ -323,7 +319,7 @@ public:
 				}
 			}
 		}
-		
+		return false;
 	}
 
 	void addClient(ClientSocket* pClient)
@@ -777,7 +773,7 @@ public:
 
 	virtual void OnLeave(ClientSocket* pClient)
 	{
-		for (int n = m_clients.size() - 1; n >= 0; n--)
+		for (int n = 0; n < m_clients.size(); n++)
 		{
 			if (m_clients[n] == pClient)
 			{
