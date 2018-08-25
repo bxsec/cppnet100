@@ -1,95 +1,71 @@
 #include "EasyTcpClient.hpp"
+#include<thread>
 
-#include <thread>
-
-
-bool g_bIsRun = true;
-//客户端数量
-const int cCount = 1000;
-
-//发送线程数量
-const int tCount = 4;
-EasyTcpClient* client[cCount];
-
-
+bool g_bRun = true;
 void cmdThread()
 {
-	char msgSend[128] = {};
-
 	while (true)
 	{
-		scanf("%s", msgSend);
-
-		//4.处理请求命令
-		if (0 == strcmp(msgSend, "exit"))
+		char cmdBuf[256] = {};
+		scanf("%s", cmdBuf);
+		if (0 == strcmp(cmdBuf, "exit"))
 		{
-			g_bIsRun = false;
+			g_bRun = false;
+			printf("退出cmdThread线程\n");
 			break;
 		}
-		else if (0 == strcmp(msgSend, "login"))
-		{
-			//5. 向服务器发送请求
-			Login login;
-			login.userName;
-			strcpy_s(login.userName, 32, "lyd");
-			strcpy_s(login.PassWord, 32, "mima");
-
-			//client->SendData(&login);
-
-		}
-		else if (0 == strcmp(msgSend, "logout"))
-		{
-			//5. 向服务器发送请求
-			Logout logout;
-			strcpy_s(logout.userName, 32, "lyd");
-			//client->SendData(&logout);
-		}
-		else
-		{
-			printf("不支持的命令\n");
+		else {
+			printf("不支持的命令。\n");
 		}
 	}
 }
 
-//#pragma comment(lib,"ws2_32.lib")
+//客户端数量
+const int cCount = 10000;
+//发送线程数量
+const int tCount = 4;
+//客户端数组
+EasyTcpClient* client[cCount];
 
 void sendThread(int id)
 {
 	//4个线程 ID 1~4
 	int c = cCount / tCount;
 	int begin = (id - 1)*c;
-	int end = id * c;
-
+	int end = id*c;
 
 	for (int n = begin; n < end; n++)
 	{
 		client[n] = new EasyTcpClient();
 	}
-
-
 	for (int n = begin; n < end; n++)
 	{
-		
-		client[n]->Connect("127.0.0.1", 8000);
+		client[n]->Connect("127.0.0.1", 8888);
+		printf("thread<%d>,Connect=%d\n", id,n);
 	}
 
-	Login login;
-	strcpy_s(login.userName, "lyd");
-	strcpy_s(login.PassWord, "mima");
+	std::chrono::milliseconds t(5000);
+	std::this_thread::sleep_for(t);
 
-	while (g_bIsRun)
+	Login login[10];
+	for (int n = 0; n < 10; n++)
+	{
+		strcpy(login[n].userName, "lyd");
+		strcpy(login[n].PassWord, "lydmm");
+	}
+	const int nLen = sizeof(login);
+	while (g_bRun)
 	{
 		for (int n = begin; n < end; n++)
 		{
-			client[n]->OnRun();
-			//printf("客户端空闲处理其他业务\n");
-			client[n]->SendData(&login);
+			client[n]->SendData(login, nLen);
+			//client[n]->OnRun();
 		}
 	}
-	for (int n = 0; n < cCount; n++)
+
+	for (int n = begin; n < end; n++)
 	{
 		client[n]->Close();
-		delete client[n];
 	}
 }
 
@@ -99,18 +75,16 @@ int main()
 	std::thread t1(cmdThread);
 	t1.detach();
 
-	
-
+	//启动发送线程
 	for (int n = 0; n < tCount; n++)
 	{
 		std::thread t1(sendThread,n+1);
 		t1.detach();
 	}
 
-	
-	Sleep(10000);
-	
-	
-	
+	while (g_bRun)
+		Sleep(100);
+
+	printf("已退出。\n");
 	return 0;
 }
